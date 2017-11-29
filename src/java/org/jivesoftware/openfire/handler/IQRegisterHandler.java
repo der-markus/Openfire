@@ -73,7 +73,7 @@ import org.xmpp.packet.StreamError;
  */
 public class IQRegisterHandler extends IQHandler implements ServerFeaturesProvider {
 
-	private static final Logger Log = LoggerFactory.getLogger(IQRegisterHandler.class);
+    private static final Logger Log = LoggerFactory.getLogger(IQRegisterHandler.class);
 
     private static boolean registrationEnabled;
     private static boolean canChangePassword;
@@ -93,7 +93,7 @@ public class IQRegisterHandler extends IQHandler implements ServerFeaturesProvid
     }
 
     @Override
-	public void initialize(XMPPServer server) {
+    public void initialize(XMPPServer server) {
         super.initialize(server);
         userManager = server.getUserManager();
         rosterManager = server.getRosterManager();
@@ -126,7 +126,7 @@ public class IQRegisterHandler extends IQHandler implements ServerFeaturesProvid
             fieldUser.setRequired(true);
 
             final FormField fieldName = registrationForm.addField(); 
-        	fieldName.setVariable("name");
+            fieldName.setVariable("name");
             fieldName.setType(FormField.Type.text_single);
             fieldName.setLabel("Full name");
             if (UserManager.getUserProvider().isNameRequired()) {
@@ -161,7 +161,7 @@ public class IQRegisterHandler extends IQHandler implements ServerFeaturesProvid
     }
 
     @Override
-	public IQ handleIQ(IQ packet) throws PacketException, UnauthorizedException {
+    public IQ handleIQ(IQ packet) throws PacketException, UnauthorizedException {
         ClientSession session = sessionManager.getSession(packet.getFrom());
         IQ reply = null;
         // If no session was found then answer an error (if possible)
@@ -311,10 +311,10 @@ public class IQRegisterHandler extends IQHandler implements ServerFeaturesProvid
                         name = iqElement.elementText("name");
                     }
                     if (email != null && email.matches("\\s*")) {
-                    	email = null;
+                        email = null;
                     }
                     if (name != null && name.matches("\\s*")) {
-                    	name = null;
+                        name = null;
                     }
                     
                     // So that we can set a more informative error message back, lets test this for
@@ -442,26 +442,38 @@ public class IQRegisterHandler extends IQHandler implements ServerFeaturesProvid
         return null;
     }
 
-    public boolean isInbandRegEnabled() {
-        return registrationEnabled;
+    public boolean isInbandRegEnabled()
+    {
+        return registrationEnabled && !UserManager.getUserProvider().isReadOnly();
     }
 
-    public void setInbandRegEnabled(boolean allowed) {
+    public void setInbandRegEnabled(boolean allowed)
+    {
+        if ( allowed && UserManager.getUserProvider().isReadOnly() )
+        {
+            Log.warn( "Enabling in-band registration has no effect, as the user provider for this system is read-only." );
+        }
         registrationEnabled = allowed;
         JiveGlobals.setProperty("register.inband", registrationEnabled ? "true" : "false");
     }
 
-    public boolean canChangePassword() {
-        return canChangePassword;
+    public boolean canChangePassword()
+    {
+        return canChangePassword && !UserManager.getUserProvider().isReadOnly();
     }
 
-    public void setCanChangePassword(boolean allowed) {
+    public void setCanChangePassword(boolean allowed)
+    {
+        if ( allowed && UserManager.getUserProvider().isReadOnly() )
+        {
+            Log.warn( "Allowing password changes has no effect, as the user provider for this system is read-only." );
+        }
         canChangePassword = allowed;
         JiveGlobals.setProperty("register.password", canChangePassword ? "true" : "false");
     }
 
     @Override
-	public IQHandlerInfo getInfo() {
+    public IQHandlerInfo getInfo() {
         return info;
     }
 

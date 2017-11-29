@@ -27,6 +27,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Arrays;
 
 import org.jivesoftware.database.bugfix.OF33;
@@ -53,7 +54,7 @@ import org.slf4j.LoggerFactory;
  */
 public class SchemaManager {
 
-	private static final Logger Log = LoggerFactory.getLogger(SchemaManager.class);
+    private static final Logger Log = LoggerFactory.getLogger(SchemaManager.class);
 
     private static final String CHECK_VERSION_OLD =
             "SELECT minorVersion FROM jiveVersion";
@@ -65,7 +66,7 @@ public class SchemaManager {
     /**
      * Current Openfire database schema version.
      */
-    private static final int DATABASE_VERSION = 25;
+    private static final int DATABASE_VERSION = 26;
 
     /**
      * Checks the Openfire database schema to ensure that it's installed and up to date.
@@ -82,7 +83,7 @@ public class SchemaManager {
             return checkSchema(con, "openfire", DATABASE_VERSION,
                     new ResourceLoader() {
                         @Override
-						public InputStream loadResource(String resourceName) {
+                        public InputStream loadResource(String resourceName) {
                             File file = new File(JiveGlobals.getHomeDirectory() + File.separator +
                                     "resources" + File.separator + "database", resourceName);
                             try {
@@ -125,7 +126,7 @@ public class SchemaManager {
             con = DbConnectionManager.getConnection();
             return checkSchema(con, schemaKey, schemaVersion, new ResourceLoader() {
                 @Override
-				public InputStream loadResource(String resourceName) {
+                public InputStream loadResource(String resourceName) {
                     File file = new File(pluginManager.getPluginDirectory(plugin) +
                             File.separator + "database", resourceName);
                     try {
@@ -367,14 +368,19 @@ public class SchemaManager {
                             DbConnectionManager.getDatabaseType() == DbConnectionManager.DatabaseType.db2) {
                         command.deleteCharAt(command.length() - 1);
                     }
-                    PreparedStatement pstmt = null;
+                    /*
+                     * PreparedStatements are not useful at this Point, because no parameters are set. They also prevent the 
+                     * creation of trigger in orcale, so use simple statements
+                     * (see http://docs.oracle.com/cd/E11882_01/java.112/e16548/oraint.htm#CHDIIDBE)
+                     */
+                    Statement stmt = null;
                     try {
                         String cmdString = command.toString();
                         if (autoreplace)  {
                             cmdString = cmdString.replaceAll("jiveVersion", "ofVersion");
                         }
-                        pstmt = con.prepareStatement(cmdString);
-                        pstmt.execute();
+                        stmt = con.createStatement();
+                        stmt.execute(cmdString);
                     }
                     catch (SQLException e) {
                         // Lets show what failed
@@ -382,7 +388,7 @@ public class SchemaManager {
                         throw e;
                     }
                     finally {
-                        DbConnectionManager.closeStatement(pstmt);
+                        DbConnectionManager.closeStatement(stmt);
                     }
                 }
             }

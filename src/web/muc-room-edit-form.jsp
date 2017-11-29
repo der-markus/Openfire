@@ -41,6 +41,8 @@
 <% webManager.init(request, response, session, application, out); %>
 
 <%  // Get parameters
+    Map<String, String> errors = new HashMap<>();
+
     boolean create = ParamUtils.getBooleanParameter(request,"create");
     boolean save = ParamUtils.getBooleanParameter(request,"save");
     boolean success = ParamUtils.getBooleanParameter(request,"success");
@@ -50,12 +52,33 @@
     String roomJIDStr = ParamUtils.getParameter(request,"roomJID");
     JID roomJID = null;
     if (roomName != null && mucName != null) {
-        roomJID = new JID(roomName, mucName, null);
+        try {
+            JID.nodeprep( roomName );
+        } catch ( IllegalArgumentException e ) {
+            errors.put("roomName","roomName");
+        }
+        try {
+            JID.domainprep( mucName );
+        } catch ( IllegalArgumentException e ) {
+            errors.put("mucName","mucName");
+        }
+
+        if ( errors.isEmpty() )
+        {
+            roomJID = new JID( roomName, mucName, null );
+        }
     }
     else if (roomJIDStr != null) {
-        roomJID = new JID(roomJIDStr);
-        roomName = roomJID.getNode();
-        mucName = roomJID.getDomain();
+        try {
+            roomJID = new JID( roomJIDStr );
+        } catch ( IllegalArgumentException e ) {
+            errors.put( "roomJID", "roomJID" );
+        }
+        if ( roomJID != null )
+        {
+            roomName = roomJID.getNode();
+            mucName = roomJID.getDomain();
+        }
     }
     String naturalName = ParamUtils.getParameter(request,"roomconfig_roomname");
     String description = ParamUtils.getParameter(request,"roomconfig_roomdesc");
@@ -110,7 +133,6 @@
     }
 
     // Handle an save
-    Map<String, String> errors = new HashMap<String, String>();
     Cookie csrfCookie = CookieUtils.getCookie(request, "csrf");
     String csrfParam = ParamUtils.getParameter(request, "csrf");
 
@@ -389,23 +411,23 @@
 
             <% if (errors.get("roomconfig_roomname") != null) { %>
                 <fmt:message key="muc.room.edit.form.valid_hint_name" />
-            <% } else if (errors.get("roomconfig_roomdesc") != null) { %>
+            <% } if (errors.get("roomconfig_roomdesc") != null) { %>
                 <fmt:message key="muc.room.edit.form.valid_hint_description" />
-            <% } else if (errors.get("roomconfig_maxusers") != null) { %>
+            <% } if (errors.get("roomconfig_maxusers") != null) { %>
                 <fmt:message key="muc.room.edit.form.valid_hint_max_room" />
-            <% } else if (errors.get("roomconfig_roomsecret2") != null) { %>
+            <% } if (errors.get("roomconfig_roomsecret2") != null) { %>
                 <fmt:message key="muc.room.edit.form.new_password" />
-            <% } else if (errors.get("roomconfig_whois") != null) { %>
+            <% } if (errors.get("roomconfig_whois") != null) { %>
                 <fmt:message key="muc.room.edit.form.role" />
-            <% } else if (errors.get("roomconfig_allowpm") != null) { %>
+            <% } if (errors.get("roomconfig_allowpm") != null) { %>
                 <fmt:message key="muc.room.edit.form.role" />
-            <% } else if (errors.get("roomName") != null) { %>
+            <% } if (errors.get("roomName") != null) { %>
                 <fmt:message key="muc.room.edit.form.valid_hint" />
-            <% } else if (errors.get("room_already_exists") != null) { %>
+            <% } if (errors.get("room_already_exists") != null) { %>
                 <fmt:message key="muc.room.edit.form.error_created_id" />
-            <% } else if (errors.get("not_enough_permissions") != null) { %>
+            <% } if (errors.get("not_enough_permissions") != null) { %>
                 <fmt:message key="muc.room.edit.form.error_created_privileges" />
-            <% } else if (errors.get("room_topic") != null) { %>
+            <% } if (errors.get("room_topic") != null) { %>
                 <fmt:message key="muc.room.edit.form.valid_hint_subject" />
             <% } %>
             </td>
@@ -485,7 +507,7 @@
                 <tbody>
                 <% if (create) { %>
                 <tr>
-                    <td><fmt:message key="muc.room.edit.form.room_id" />:</td>
+                    <td><fmt:message key="muc.room.edit.form.room_id" />: *</td>
                     <td><input type="text" name="roomName" value="<%= StringUtils.escapeForXML(roomName) %>">
                         <% if (webManager.getMultiUserChatManager().getMultiUserChatServicesCount() > 1) { %>
                         @<select name="mucName">
@@ -516,12 +538,12 @@
                </tr>
                 <% } %>
                  <tr>
-                    <td><fmt:message key="muc.room.edit.form.room_name" />:</td>
+                    <td><fmt:message key="muc.room.edit.form.room_name" />: *</td>
                     <td><input type="text" name="roomconfig_roomname" value="<%= (naturalName == null ? "" : StringUtils.escapeForXML(naturalName)) %>">
                     </td>
                 </tr>
                  <tr>
-                    <td><fmt:message key="muc.room.edit.form.description" />:</td>
+                    <td><fmt:message key="muc.room.edit.form.description" />:  *</td>
                     <td><input name="roomconfig_roomdesc" value="<%= (description == null ? "" : StringUtils.escapeForXML(description)) %>" type="text" size="40">
                     </td>
                 </tr>
@@ -634,6 +656,7 @@
             <input type="submit" name="cancel" value="<fmt:message key="global.cancel" />"></td>
         </tr>
     </table>
+    <span class="jive-description">* <fmt:message key="muc.room.edit.form.required_field" /> </span>
 </form>
 
     </body>

@@ -35,6 +35,8 @@ import org.jivesoftware.openfire.auth.AuthToken;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.lockout.LockOutManager;
 import org.jivesoftware.openfire.muc.MultiUserChatManager;
+import org.jivesoftware.openfire.pubsub.PubSubInfo;
+import org.jivesoftware.openfire.pubsub.PubSubServiceInfo;
 import org.jivesoftware.openfire.roster.RosterManager;
 import org.jivesoftware.openfire.security.SecurityAuditManager;
 import org.jivesoftware.openfire.user.User;
@@ -44,17 +46,28 @@ import org.jivesoftware.util.cache.CacheFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.servlet.http.HttpSession;
+
 /**
  * A utility bean for Openfire admin console pages.
  */
 public class WebManager extends WebBean {
 
-	private static final Logger Log = LoggerFactory.getLogger(WebManager.class);
+    private static final Logger Log = LoggerFactory.getLogger(WebManager.class);
 
     private int start = 0;
     private int range = 15;
 
     public WebManager() {
+    }
+
+    /**
+     * Invalidates and recreates session (do this on login/logout).
+     */
+    public HttpSession invalidateSession() {
+        session.invalidate();
+        session = request.getSession(true);
+        return session;
     }
 
     /**
@@ -122,6 +135,10 @@ public class WebManager extends WebBean {
 
     public XMPPServerInfo getServerInfo() {
         return getXMPPServer().getServerInfo();
+    }
+
+    public PubSubServiceInfo getPubSubInfo() {
+        return new PubSubInfo();
     }
 
     /**

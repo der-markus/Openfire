@@ -17,6 +17,7 @@
 package org.jivesoftware.openfire.plugin.session;
 
 import org.jivesoftware.openfire.SessionManager;
+import org.jivesoftware.openfire.session.DomainPair;
 import org.jivesoftware.openfire.session.OutgoingServerSession;
 import org.jivesoftware.openfire.session.Session;
 import org.jivesoftware.util.cache.ExternalizableUtil;
@@ -33,27 +34,24 @@ import java.io.ObjectOutput;
  * @author Gaston Dombiak
  */
 public class OutgoingServerSessionTask extends RemoteSessionTask {
-    private JID address;
+    private DomainPair address;
 
     public OutgoingServerSessionTask() {
     }
 
-    protected OutgoingServerSessionTask(JID address, Operation operation) {
+    protected OutgoingServerSessionTask(DomainPair address, Operation operation) {
         super(operation);
         this.address = address;
     }
 
     Session getSession() {
-        return SessionManager.getInstance().getOutgoingServerSession(address.getDomain());
+        return SessionManager.getInstance().getOutgoingServerSession(address);
     }
 
     public void run() {
         super.run();
-        if (operation == Operation.getAuthenticatedDomains) {
-            result = ((OutgoingServerSession) getSession()).getAuthenticatedDomains();
-        }
-        else if (operation == Operation.getHostnames) {
-            result = ((OutgoingServerSession) getSession()).getHostnames();
+        if (operation == Operation.getOutgoingDomainPairs) {
+            result = ((OutgoingServerSession) getSession()).getOutgoingDomainPairs();
         }
         else if (operation == Operation.isUsingServerDialback) {
             result = ((OutgoingServerSession) getSession()).isUsingServerDialback();
@@ -67,7 +65,7 @@ public class OutgoingServerSessionTask extends RemoteSessionTask {
 
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         super.readExternal(in);
-        address = (JID) ExternalizableUtil.getInstance().readSerializable(in);
+        address = (DomainPair) ExternalizableUtil.getInstance().readSerializable(in);
     }
 
     public String toString() {

@@ -20,10 +20,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import javax.net.ssl.SSLHandshakeException;
@@ -78,16 +75,15 @@ import org.xmpp.packet.Presence;
  */
 public class LocalOutgoingServerSession extends LocalServerSession implements OutgoingServerSession {
 
-	private static final Logger Log = LoggerFactory.getLogger(LocalOutgoingServerSession.class);
+    private static final Logger Log = LoggerFactory.getLogger(LocalOutgoingServerSession.class);
 
     /**
      * Regular expression to ensure that the hostname contains letters.
      */
     private static Pattern pattern = Pattern.compile("[a-zA-Z]");
 
-    private Collection<String> authenticatedDomains = new HashSet<>();
-    private final Collection<String> hostnames = new HashSet<>();
     private OutgoingServerSocketReader socketReader;
+    private Collection<DomainPair> outgoingDomainPairs = new HashSet<>();
 
     /**
      * Authenticates the local domain to the remote domain. Once authenticated the remote domain can be expected to
@@ -110,6 +106,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
      */
     public static boolean authenticateDomain(final String localDomain, final String remoteDomain) {
         final Logger log = LoggerFactory.getLogger( Log.getName() + "[Authenticate local domain: '" + localDomain + "' to remote domain: '" + remoteDomain + "']" );
+        final DomainPair domainPair = new DomainPair(localDomain, remoteDomain);
 
         log.debug( "Start domain authentication ..." );
         if (remoteDomain == null || remoteDomain.length() == 0 || remoteDomain.trim().indexOf(' ') > -1) {
@@ -132,7 +129,18 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
                 log.warn( "Unable to authenticate: a SessionManager instance is not available. This should not occur unless Openfire is starting up or shutting down." );
                 return false;
             }
-            session = sessionManager.getOutgoingServerSession(remoteDomain);
+            session = sessionManager.getOutgoingServerSession(domainPair);
+            if (session != null && session.checkOutgoingDomainPair(localDomain, remoteDomain))
+            {
+                // Do nothing since the domain has already been authenticated.
+                log.debug( "Authentication successful (domain was already authenticated in the pre-existing session)." );
+                return true;
+            }
+            if (session != null && !session.isUsingServerDialback() )
+            {
+                log.debug( "Dialback was not used for '{}'. This session cannot be re-used.", domainPair );
+                session = null;
+            }
 
             if (session == null)
             {
@@ -144,7 +152,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
                     for ( String otherRemoteDomain : incomingSession.getValidatedDomains() )
                     {
                         // See if there's an outgoing session to any of the (other) domains hosted by the remote domain.
-                        session = sessionManager.getOutgoingServerSession( otherRemoteDomain );
+                        session = sessionManager.getOutgoingServerSession( new DomainPair(localDomain, otherRemoteDomain) );
                         if (session != null)
                         {
                             log.debug( "An outgoing session to a different domain ('{}') hosted on the remote domain was found.", otherRemoteDomain );
@@ -172,7 +180,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
             if ( session != null )
             {
                 log.debug( "A pre-existing session can be re-used. The session was established using server dialback so it is possible to do piggybacking to authenticate more domains." );
-                if ( session.getAuthenticatedDomains().contains( localDomain ) && session.getHostnames().contains( remoteDomain ) )
+                if ( session.checkOutgoingDomainPair(localDomain, remoteDomain) )
                 {
                     // Do nothing since the domain has already been authenticated.
                     log.debug( "Authentication successful (domain was already authenticated in the pre-existing session)." );
@@ -199,11 +207,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
                 if (session != null) {
                     log.debug( "Created a new session." );
 
-                    // Add the validated domain as an authenticated domain
-                    session.addAuthenticatedDomain(localDomain);
-                    // Add the new domain to the list of names that the server may have
-                    session.addHostname(remoteDomain);
-                    // Notify the SessionManager that a new session has been created
+                    session.addOutgoingDomainPair(localDomain, remoteDomain);
                     sessionManager.outgoingServerSessionCreated((LocalOutgoingServerSession) session);
                     log.debug( "Authentication successful." );
                     return true;
@@ -383,7 +387,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
     }
 
     private static LocalOutgoingServerSession secureAndAuthenticate(String remoteDomain, SocketConnection connection, XMPPPacketReader reader, StringBuilder openingStream, String localDomain) throws Exception {
-    	final Logger log = LoggerFactory.getLogger(Log.getName() + "[Secure/Authenticate connection for: " + localDomain + " to: " + remoteDomain + "]" );
+        final Logger log = LoggerFactory.getLogger(Log.getName() + "[Secure/Authenticate connection for: " + localDomain + " to: " + remoteDomain + "]" );
         Element features;
 
         log.debug( "Securing and authenticating connection ...");
@@ -448,26 +452,26 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
                 LocalOutgoingServerSession result = null;
 
                 // first, try SASL
-            	if (saslEXTERNALoffered) {
+                if (saslEXTERNALoffered) {
                     log.debug( "Trying to authenticate with EXTERNAL SASL." );
-            		result = attemptSASLexternal(connection, xpp, reader, localDomain, remoteDomain, id, openingStream);
+                    result = attemptSASLexternal(connection, xpp, reader, localDomain, remoteDomain, id, openingStream);
                     if (result == null) {
                         log.debug( "Failed to authenticate with EXTERNAL SASL." );
                     } else {
                         log.debug( "Successfully authenticated with EXTERNAL SASL." );
                     }
-            	}
+                }
 
                 // SASL unavailable or failed, try dialback.
-            	if (result == null) {
+                if (result == null) {
                     log.debug( "Trying to authenticate with dialback." );
-            		result = attemptDialbackOverTLS(connection, reader, localDomain, remoteDomain, id);
+                    result = attemptDialbackOverTLS(connection, reader, localDomain, remoteDomain, id);
                     if (result == null) {
                         log.debug( "Failed to authenticate with dialback." );
                     } else {
                         log.debug( "Successfully authenticated with dialback." );
                     }
-            	}
+                }
 
                 if ( result != null ) {
                     log.debug( "Successfully secured and authenticated connection!" );
@@ -570,12 +574,13 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
     }
 
     @Override
-	boolean canProcess(Packet packet) {
-        String senderDomain = packet.getFrom().getDomain();
+    boolean canProcess(Packet packet) {
+        final String senderDomain = packet.getFrom().getDomain();
+        final String recipDomain = packet.getTo().getDomain();
         boolean processed = true;
-        if (!getAuthenticatedDomains().contains(senderDomain)) {
+        if (!checkOutgoingDomainPair(senderDomain, recipDomain)) {
             synchronized (("Auth::" + senderDomain).intern()) {
-                if (!getAuthenticatedDomains().contains(senderDomain) &&
+                if (!checkOutgoingDomainPair(senderDomain, recipDomain) &&
                         !authenticateSubdomain(senderDomain, packet.getTo().getDomain())) {
                     // Return error since sender domain was not validated by remote server
                     processed = false;
@@ -589,7 +594,7 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
     }
 
     @Override
-	void deliver(Packet packet) throws UnauthorizedException {
+    void deliver(Packet packet) throws UnauthorizedException {
         if (!conn.isClosed()) {
             conn.deliver(packet);
         }
@@ -598,17 +603,15 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
     @Override
     public boolean authenticateSubdomain(String localDomain, String remoteDomain) {
         if (!usingServerDialback) {
-            // Using SASL so just assume that the domain was validated
-            // (note: this may not be correct)
-            addAuthenticatedDomain(localDomain);
-            addHostname(remoteDomain);
-            return true;
+            /*
+             * We cannot do this reliably; but this code should be unreachable.
+             */
+            return false;
         }
         ServerDialback method = new ServerDialback(getConnection(), localDomain);
         if (method.authenticateDomain(socketReader, localDomain, remoteDomain, getStreamID().getID())) {
             // Add the validated domain as an authenticated domain
-            addAuthenticatedDomain(localDomain);
-            addHostname(remoteDomain);
+            addOutgoingDomainPair(localDomain, remoteDomain);
             return true;
         }
         return false;
@@ -621,10 +624,10 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
         }
         try {
             if (packet instanceof IQ) {
-            	if (((IQ) packet).isResponse()) {
-            		Log.debug("XMPP specs forbid us to respond with an IQ error to: " + packet.toXML());
-            		return;
-            	}
+                if (((IQ) packet).isResponse()) {
+                    Log.debug("XMPP specs forbid us to respond with an IQ error to: " + packet.toXML());
+                    return;
+                }
                 IQ reply = new IQ();
                 reply.setID(packet.getID());
                 reply.setTo(packet.getFrom());
@@ -668,34 +671,25 @@ public class LocalOutgoingServerSession extends LocalServerSession implements Ou
     }
 
     @Override
-    public Collection<String> getAuthenticatedDomains() {
-        return Collections.unmodifiableCollection(authenticatedDomains);
-    }
-
-    @Override
-    public void addAuthenticatedDomain(String domain) {
-        authenticatedDomains.add(domain);
-    }
-
-    @Override
-    public Collection<String> getHostnames() {
-        synchronized (hostnames) {
-            return Collections.unmodifiableCollection(hostnames);
-        }
-    }
-
-    @Override
-    public void addHostname(String hostname) {
-        synchronized (hostnames) {
-            hostnames.add(hostname);
-        }
-        // Add a new route for this new session
-        XMPPServer.getInstance().getRoutingTable().addServerRoute(new JID(null, hostname, null, true), this);
-    }
-
-    @Override
-	public String getAvailableStreamFeatures() {
+    public String getAvailableStreamFeatures() {
         // Nothing special to add
         return null;
+    }
+
+    @Override
+    public void addOutgoingDomainPair(String localDomain, String remoteDomain) {
+        final DomainPair domainPair = new DomainPair(localDomain, remoteDomain);
+        outgoingDomainPairs.add(domainPair);
+        XMPPServer.getInstance().getRoutingTable().addServerRoute(domainPair, this);
+    }
+
+    @Override
+    public boolean checkOutgoingDomainPair(String localDomain, String remoteDomain) {
+         return outgoingDomainPairs.contains(new DomainPair(localDomain, remoteDomain));
+    }
+
+    @Override
+    public Collection<DomainPair> getOutgoingDomainPairs() {
+        return outgoingDomainPairs;
     }
 }

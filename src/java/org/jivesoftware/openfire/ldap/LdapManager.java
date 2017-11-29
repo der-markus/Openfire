@@ -16,6 +16,7 @@
 
 package org.jivesoftware.openfire.ldap;
 
+import com.sun.jndi.ldap.LdapCtxFactory;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
@@ -33,12 +34,25 @@ import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
 import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
-import javax.naming.ldap.*;
+import javax.naming.ldap.Control;
+import javax.naming.ldap.LdapContext;
+import javax.naming.ldap.PagedResultsControl;
+import javax.naming.ldap.PagedResultsResponseControl;
+import javax.naming.ldap.SortControl;
+import javax.naming.ldap.StartTlsRequest;
+import javax.naming.ldap.StartTlsResponse;
 import javax.net.ssl.SSLSession;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -82,6 +96,11 @@ import java.util.regex.Pattern;
 public class LdapManager {
 
     private static final Logger Log = LoggerFactory.getLogger(LdapManager.class);
+    // Determine the name of the default LDAP context factory.
+    // NOTE: Extracting the name from the class rather than hard coding it allows the compiler to detect the use of this
+    // internal class and emit an appropriate warning ("warning: LdapCtxFactory is internal proprietary API and may be removed in a future release")
+    // This is deliberate, to highlight use of classes that may be removed in the future.
+    private static final String DEFAULT_LDAP_CONTEXT_FACTORY = LdapCtxFactory.class.getName();
 
     private static LdapManager instance;
     static {
@@ -409,12 +428,12 @@ public class LdapManager {
             catch (ClassNotFoundException cnfe) {
                 Log.error("Initial context factory class failed to load: " + initialContextFactory +
                         ".  Using default initial context factory class instead.");
-                initialContextFactory = "com.sun.jndi.ldap.LdapCtxFactory";
+                initialContextFactory = DEFAULT_LDAP_CONTEXT_FACTORY;
             }
         }
         // Use default value if none was set.
         else {
-            initialContextFactory = "com.sun.jndi.ldap.LdapCtxFactory";
+            initialContextFactory = DEFAULT_LDAP_CONTEXT_FACTORY;
         }
 
         StringBuilder buf = new StringBuilder();
@@ -1009,7 +1028,7 @@ public class LdapManager {
 
             // NOTE: this assumes that the username has already been JID-unescaped
             NamingEnumeration<SearchResult> answer = ctx.search("", getSearchFilter(), 
-            		new String[] {sanitizeSearchFilter(username)},
+                    new String[] {sanitizeSearchFilter(username)},
                     constraints);
 
             if (debug) {
@@ -1050,11 +1069,11 @@ public class LdapManager {
                 userDN = getEnclosedDN(userDN);
             }
             return userDN;
-        }
-        catch (Exception e) {
-            if (debug) {
-                Log.debug("LdapManager: Exception thrown when searching for userDN based on username '" + username + "'", e);
-            }
+        } catch (final UserNotFoundException e) {
+            Log.trace("LdapManager: UserNotFoundException thrown", e);
+            throw e;
+        } catch (final Exception e) {
+            Log.debug("LdapManager: Exception thrown when searching for userDN based on username '" + username + "'", e);
             throw e;
         }
         finally {
@@ -1194,11 +1213,11 @@ public class LdapManager {
                 groupDN = getEnclosedDN(groupDN);
             }
             return groupDN;
-        }
-        catch (Exception e) {
-            if (debug) {
-                Log.debug("LdapManager: Exception thrown when searching for groupDN based on groupname '" + groupname + "'", e);
-            }
+        } catch (final GroupNotFoundException e) {
+            Log.trace("LdapManager: GroupNotFoundException thrown", e);
+            throw e;
+        } catch (final Exception e) {
+            Log.debug("LdapManager: Exception thrown when searching for groupDN based on groupname '" + groupname + "'", e);
             throw e;
         }
         finally {
@@ -1903,7 +1922,7 @@ public class LdapManager {
      * @return A simple list of strings (that should be sorted) of the results.
      */
     public List<String> retrieveList(String attribute, String searchFilter, int startIndex, int numResults, String suffixToTrim) {
-    	return retrieveList(attribute, searchFilter, startIndex, numResults, suffixToTrim, false);
+        return retrieveList(attribute, searchFilter, startIndex, numResults, suffixToTrim, false);
     }
 
     /**
@@ -2302,20 +2321,20 @@ public class LdapManager {
                 char c = value.charAt(i);
 
                 switch(c) {
-	            	case '!':		result.append("\\21");	break;
-	            	case '&':		result.append("\\26");	break;
-	            	case '(':		result.append("\\28");	break;
-	            	case ')':		result.append("\\29");	break;
-	            	case '*':		result.append(acceptWildcard ? "*" : "\\2a");	break;
-	            	case ':':		result.append("\\3a");	break;
-	            	case '\\':		result.append("\\5c");	break;
-	            	case '|':		result.append("\\7c");	break;
-	            	case '~':		result.append("\\7e");	break;
-	            	case '\u0000':	result.append("\\00");	break;
-            	default:
-            		if (c <= 0x7f) {
+                    case '!':		result.append("\\21");	break;
+                    case '&':		result.append("\\26");	break;
+                    case '(':		result.append("\\28");	break;
+                    case ')':		result.append("\\29");	break;
+                    case '*':		result.append(acceptWildcard ? "*" : "\\2a");	break;
+                    case ':':		result.append("\\3a");	break;
+                    case '\\':		result.append("\\5c");	break;
+                    case '|':		result.append("\\7c");	break;
+                    case '~':		result.append("\\7e");	break;
+                    case '\u0000':	result.append("\\00");	break;
+                default:
+                    if (c <= 0x7f) {
                         // regular 1-byte UTF-8 char
-            			result.append(String.valueOf(c));
+                        result.append(String.valueOf(c));
                     }
                     else if (c >= 0x080) {
                         // higher-order 2, 3 and 4-byte UTF-8 chars

@@ -57,7 +57,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class PubSubEngine {
 
-	private static final Logger Log = LoggerFactory.getLogger(PubSubEngine.class);
+    private static final Logger Log = LoggerFactory.getLogger(PubSubEngine.class);
 
     /**
      * The packet router for the server.
@@ -332,8 +332,7 @@ public class PubSubEngine {
                     // If it is a PEP service & publisher is service owner -
                     // auto create nodes.
                     Element childElement = iq.getChildElement();
-                    Element createElement = publishElement.element("publish");
-                    CreateNodeResponse response = createNodeHelper(service, iq, childElement, createElement);
+                    CreateNodeResponse response = createNodeHelper(service, iq, childElement, publishElement);
 
                     if (response.newNode == null) {
                         // New node creation failed. Since pep#auto-create is advertised 
@@ -543,7 +542,7 @@ public class PubSubEngine {
             return;
         }
         // Check if the subscriber is an anonymous user
-        if (!UserManager.getInstance().isRegisteredUser(subscriberJID)) {
+        if (!isComponent(subscriberJID) && !UserManager.getInstance().isRegisteredUser(subscriberJID)) {
             // Anonymous users cannot subscribe to the node. Return forbidden error
             sendErrorPacket(iq, PacketError.Condition.forbidden, null);
             return;
@@ -1014,7 +1013,7 @@ public class PubSubEngine {
         if (node.isMultipleSubscriptionsEnabled() && (node.getSubscriptions(owner).size() > 1)) {
             if (subID == null) {
                 // No subid was specified and the node supports multiple subscriptions and the user
-            	// has multiple subscriptions
+                // has multiple subscriptions
                 Element pubsubError = DocumentHelper.createElement(
                         QName.get("subid-required", "http://jabber.org/protocol/pubsub#errors"));
                 sendErrorPacket(iq, PacketError.Condition.bad_request, pubsubError);
@@ -1152,7 +1151,7 @@ public class PubSubEngine {
         // Get sender of the IQ packet
         JID from = iq.getFrom();
         // Verify that sender has permissions to create nodes
-        if (!service.canCreateNode(from) || (!UserManager.getInstance().isRegisteredUser(from) && !isComponent(from)) ) {
+        if (!service.canCreateNode(from) || (!isComponent(from) && !UserManager.getInstance().isRegisteredUser(from))) {
             // The user is not allowed to create nodes so return an error
             return new CreateNodeResponse(PacketError.Condition.forbidden, null, null);
         }
@@ -1357,7 +1356,7 @@ public class PubSubEngine {
                 // (and update the backend store)
                 node.configure(completedForm);
 
-				CacheFactory.doClusterTask(new RefreshNodeTask(node));
+                CacheFactory.doClusterTask(new RefreshNodeTask(node));
                 // Return that node configuration was successful
                 router.route(IQ.createResultIQ(iq));
             }
@@ -1790,17 +1789,17 @@ public class PubSubEngine {
     }
 
     public void shutdown(PubSubService service) {
-    	PubSubPersistenceManager.shutdown();
-    	if (service != null) {
+        PubSubPersistenceManager.shutdown();
+        if (service != null) {
 
-    		if (service.getManager() != null) {
-		    	// Stop executing ad-hoc commands
-		        service.getManager().stop();
-    		}
-	        
-	        // clear all nodes for this service, to remove circular references back to the service instance.
-			service.getNodes().clear(); // FIXME: this is an ugly hack. getNodes() is documented to return an unmodifiable collection (but does not).
-    	}
+            if (service.getManager() != null) {
+                // Stop executing ad-hoc commands
+                service.getManager().stop();
+            }
+            
+            // clear all nodes for this service, to remove circular references back to the service instance.
+            service.getNodes().clear(); // FIXME: this is an ugly hack. getNodes() is documented to return an unmodifiable collection (but does not).
+        }
     }
 
     /*******************************************************************************
@@ -1890,17 +1889,17 @@ public class PubSubEngine {
     }
 
     /**
-	 * Checks to see if the jid given is a component by looking at the routing
-	 * table. Similar to {@link InternalComponentManager#hasComponent(JID)}.
-	 * 
-	 * @param jid
-	 * @return <tt>true</tt> if the JID is a component, <tt>false<.tt> if not.
-	 */
-	private boolean isComponent(JID jid) {
-		final RoutingTable routingTable = XMPPServer.getInstance().getRoutingTable();
-		if (routingTable != null) {
-			return routingTable.hasComponentRoute(jid);
-		}
-		return false;
-	}
+     * Checks to see if the jid given is a component by looking at the routing
+     * table. Similar to {@link InternalComponentManager#hasComponent(JID)}.
+     * 
+     * @param jid
+     * @return <tt>true</tt> if the JID is a component, <tt>false<.tt> if not.
+     */
+    private boolean isComponent(JID jid) {
+        final RoutingTable routingTable = XMPPServer.getInstance().getRoutingTable();
+        if (routingTable != null) {
+            return routingTable.hasComponentRoute(jid);
+        }
+        return false;
+    }
 }

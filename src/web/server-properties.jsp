@@ -106,10 +106,9 @@
             errors.put("propValueLength","");
         }
         if (errors.size() == 0) {
-        	JiveGlobals.setPropertyEncrypted(propName, encrypt);
-            JiveGlobals.setProperty(propName, propValue);
+            JiveGlobals.setProperty(propName, propValue, encrypt);
             // Log the event
-            webManager.logEvent("set server property "+propName, propName+" = "+propValue);
+            webManager.logEvent("set server property "+propName, propName+" = " + (encrypt ? "********" : propValue));
             response.sendRedirect("server-properties.jsp?success=true");
             return;
         }
@@ -245,11 +244,11 @@ function doedit(propName) {
 function doencrypt(propName) {
     var doencrypt = confirm('<fmt:message key="server.properties.encrypt_confirm" />');
     if (doencrypt) {
-	    document.propform.propName.value = propName;
-	    document.propform.encrypt.value = 'true';
-	    document.propform.action = document.propform.action + '#encrypt';
-	    document.propform.submit();
-	}
+        document.propform.propName.value = propName;
+        document.propform.encrypt.value = 'true';
+        document.propform.action = document.propform.action + '#encrypt';
+        document.propform.submit();
+    }
 }
 function dodelete(propName) {
     var dodelete = confirm('<fmt:message key="server.properties.delete_confirm" />');
@@ -332,12 +331,12 @@ function dodelete(propName) {
         </td>
         <td align="center"><%
           if (!JiveGlobals.isPropertyEncrypted(n)) { %>
-        	<a href="#"  onclick="doencrypt('<%= StringUtils.replace(StringUtils.escapeHTMLTags(n),"'","''") %>');" >
-        	<img src="images/add-16x16.gif" width="16" height="16" alt="<fmt:message key="server.properties.alt_encrypt" />" border="0"></a><% 
+            <a href="#"  onclick="doencrypt('<%= StringUtils.replace(StringUtils.escapeHTMLTags(n),"'","''") %>');" >
+            <img src="images/add-16x16.gif" width="16" height="16" alt="<fmt:message key="server.properties.alt_encrypt" />" border="0"></a><% 
           } else { %>
-        	<img src="images/lock.gif" width="16" height="16" alt="<fmt:message key="server.properties.alt_encrypted" />" border="0"><%
+            <img src="images/lock.gif" width="16" height="16" alt="<fmt:message key="server.properties.alt_encrypted" />" border="0"><%
           } %> 
-        	
+            
         </td>
         <td align="center"><a href="#" onclick="return dodelete('<%= StringUtils.replace(StringUtils.escapeHTMLTags(n),"'","''") %>');"
                 ><img src="images/delete-16x16.gif" width="16" height="16"

@@ -18,14 +18,13 @@ package org.jivesoftware.openfire.plugin;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.util.TimerTask;
 
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.cluster.ClusterManager;
 import org.jivesoftware.openfire.container.Plugin;
 import org.jivesoftware.openfire.container.PluginManager;
+import org.jivesoftware.openfire.container.PluginManagerListener;
 import org.jivesoftware.util.JiveGlobals;
-import org.jivesoftware.util.TaskEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,28 +36,30 @@ import org.slf4j.LoggerFactory;
  * @author Tom Evans
  * @author Matt Tucker
  */
-public class HazelcastPlugin extends TimerTask implements Plugin {
+public class HazelcastPlugin implements Plugin {
 
     private static Logger logger = LoggerFactory.getLogger(HazelcastPlugin.class);
 
-    private static final long CLUSTER_STARTUP_DELAY_TIME = 
-    		JiveGlobals.getLongProperty("hazelcast.startup.delay.seconds", 5);
-    
-    public void initializePlugin(PluginManager manager, File pluginDirectory) {
-    	// start cluster using a separate thread after a short delay
-    	// this will allow other plugins to initialize during startup
-    	TaskEngine.getInstance().schedule(this, CLUSTER_STARTUP_DELAY_TIME*1000);
+    public void initializePlugin(final PluginManager manager, final File pluginDirectory) {
+        logger.info("Waiting for other plugins to initialize before initializing clustering");
+        manager.addPluginManagerListener(new PluginManagerListener() {
+            @Override
+            public void pluginsMonitored() {
+                manager.removePluginManagerListener(this);
+                initializeClustering();
+            }
+        });
     }
 
-	@Override
-	public void run() {
+    private void initializeClustering() {
+        logger.info("All plugins have initialized; initializing clustering");
         // Check if another cluster is installed and stop loading this plugin if found
         File pluginDir = new File(JiveGlobals.getHomeDirectory(), "plugins");
         File[] jars = pluginDir.listFiles(new FileFilter() {
             public boolean accept(File pathname) {
                 String fileName = pathname.getName().toLowerCase();
                 return (fileName.equalsIgnoreCase("enterprise.jar") || 
-                		fileName.equalsIgnoreCase("coherence.jar"));
+                        fileName.equalsIgnoreCase("coherence.jar"));
             }
         });
         if (jars.length > 0) {
@@ -67,13 +68,13 @@ public class HazelcastPlugin extends TimerTask implements Plugin {
             throw new IllegalStateException("Clustering plugin configuration conflict (Coherence)");
         }
         ClusterManager.startup();
-	}
+    }
 
     public void destroyPlugin() {
         // Shutdown is initiated by XMPPServer before unloading plugins
-    	if (!XMPPServer.getInstance().isShuttingDown()) {
-    		ClusterManager.shutdown();
-    	}
+        if (!XMPPServer.getInstance().isShuttingDown()) {
+            ClusterManager.shutdown();
+        }
     }
 
 }

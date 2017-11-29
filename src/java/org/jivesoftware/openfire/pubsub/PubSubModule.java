@@ -66,7 +66,7 @@ import org.xmpp.packet.Presence;
 public class PubSubModule extends BasicModule implements ServerItemsProvider, DiscoInfoProvider,
         DiscoItemsProvider, RoutableChannelHandler, PubSubService, PropertyEventListener {
 
-	private static final Logger Log = LoggerFactory.getLogger(PubSubModule.class);
+    private static final Logger Log = LoggerFactory.getLogger(PubSubModule.class);
 
     /**
      * the chat service's hostname
@@ -315,17 +315,27 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return sysadmins;
     }
 
+    public void setSysadmins(Collection<String> userJIDs) {
+        sysadmins.clear();
+        for (String JID : userJIDs) {
+            sysadmins.add(JID.trim().toLowerCase());
+        }
+        updateSysadminProperty();
+    }
+
     public void addSysadmin(String userJID) {
         sysadmins.add(userJID.trim().toLowerCase());
         // Update the config.
-        String[] jids = new String[sysadmins.size()];
-        jids = sysadmins.toArray(jids);
-        JiveGlobals.setProperty("xmpp.pubsub.sysadmin.jid", fromArray(jids));
+        updateSysadminProperty();
     }
 
     public void removeSysadmin(String userJID) {
         sysadmins.remove(userJID.trim().toLowerCase());
         // Update the config.
+        updateSysadminProperty();
+    }
+
+    private void updateSysadminProperty() {
         String[] jids = new String[sysadmins.size()];
         jids = sysadmins.toArray(jids);
         JiveGlobals.setProperty("xmpp.pubsub.sysadmin.jid", fromArray(jids));
@@ -345,26 +355,36 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         JiveGlobals.setProperty("xmpp.pubsub.create.anyone", Boolean.toString(nodeCreationRestricted));
     }
 
+    public void setUserAllowedToCreate(Collection<String> userJIDs) {
+        allowedToCreate.clear();
+        for (String JID : userJIDs) {
+            allowedToCreate.add(JID.trim().toLowerCase());
+        }
+        updateUserAllowedToCreateProperty();
+    }
+
     public void addUserAllowedToCreate(String userJID) {
         // Update the list of allowed JIDs to create nodes.
         allowedToCreate.add(userJID.trim().toLowerCase());
         // Update the config.
-        String[] jids = new String[allowedToCreate.size()];
-        jids = allowedToCreate.toArray(jids);
-        JiveGlobals.setProperty("xmpp.pubsub.create.jid", fromArray(jids));
+        updateUserAllowedToCreateProperty();
     }
 
     public void removeUserAllowedToCreate(String userJID) {
         // Update the list of allowed JIDs to create nodes.
         allowedToCreate.remove(userJID.trim().toLowerCase());
         // Update the config.
+        updateUserAllowedToCreateProperty();
+    }
+
+    private void updateUserAllowedToCreateProperty() {
         String[] jids = new String[allowedToCreate.size()];
         jids = allowedToCreate.toArray(jids);
         JiveGlobals.setProperty("xmpp.pubsub.create.jid", fromArray(jids));
     }
 
     @Override
-	public void initialize(XMPPServer server) {
+    public void initialize(XMPPServer server) {
         super.initialize(server);
         
         JiveGlobals.migrateProperty("xmpp.pubsub.enabled");
@@ -386,7 +406,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         // Load the list of JIDs that are sysadmins of the PubSub service
         String property = JiveGlobals.getProperty("xmpp.pubsub.sysadmin.jid");
         String[] jids;
-        if (property != null) {
+        if (property != null && !property.isEmpty()) {
             jids = property.split(",");
             for (String jid : jids) {
                 sysadmins.add(jid.trim().toLowerCase());
@@ -395,7 +415,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         nodeCreationRestricted = JiveGlobals.getBooleanProperty("xmpp.pubsub.create.anyone", false);
         // Load the list of JIDs that are allowed to create nodes
         property = JiveGlobals.getProperty("xmpp.pubsub.create.jid");
-        if (property != null) {
+        if (property != null && !property.isEmpty()) {
             jids = property.split(",");
             for (String jid : jids) {
                 allowedToCreate.add(jid.trim().toLowerCase());
@@ -474,7 +494,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
     }
 
     @Override
-	public void start() {
+    public void start() {
         // Check that the service is enabled
         if (!isServiceEnabled()) {
             return;
@@ -491,7 +511,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
     }
 
     @Override
-	public void stop() {
+    public void stop() {
         super.stop();
         // Remove the route to this service
         routingTable.removeComponentRoute(getAddress());
@@ -551,7 +571,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
 
     public void markedAsSeniorClusterMember() {
         // Offer the service since we are the senior cluster member
-		// enableService(true);
+        // enableService(true);
     }
 
     @Override
@@ -561,11 +581,11 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             return null;
         }
         ArrayList<DiscoServerItem> items = new ArrayList<>();
-		final DiscoServerItem item = new DiscoServerItem(new JID(
-			getServiceDomain()), "Publish-Subscribe service", null, null, this,
-			this);
-		items.add(item);
-		return items.iterator();
+        final DiscoServerItem item = new DiscoServerItem(new JID(
+            getServiceDomain()), "Publish-Subscribe service", null, null, this,
+            this);
+        items.add(item);
+        return items.iterator();
     }
 
     @Override
@@ -713,9 +733,9 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             // Answer all first level nodes
             for (Node pubNode : rootCollectionNode.getNodes()) {
                 if (canDiscoverNode(pubNode)) {
-                	final DiscoItem item = new DiscoItem(
-						new JID(serviceDomain), pubNode.getName(),
-						pubNode.getNodeID(), null);
+                    final DiscoItem item = new DiscoItem(
+                        new JID(serviceDomain), pubNode.getName(),
+                        pubNode.getNodeID(), null);
                     answer.add(item);
                 }
             }
@@ -727,8 +747,8 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
                     // Answer all nested nodes as items
                     for (Node nestedNode : pubNode.getNodes()) {
                         if (canDiscoverNode(nestedNode)) {
-                        	final DiscoItem item = new DiscoItem(new JID(serviceDomain), nestedNode.getName(),
-								nestedNode.getNodeID(), null);
+                            final DiscoItem item = new DiscoItem(new JID(serviceDomain), nestedNode.getName(),
+                                nestedNode.getNodeID(), null);
                             answer.add(item);
                         }
                     }
