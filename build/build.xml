@@ -24,9 +24,9 @@
     <!-- ======================================================================================= -->
 
     <property name="version.major" value="4"/>
-    <property name="version.minor" value="2"/>
+    <property name="version.minor" value="3"/>
     <property name="version.revision" value="0"/>
-    <property name="version.extra" value="beta"/>    <!-- For 'beta' or 'alpha' -->
+    <property name="version.extra" value="alpha"/>    <!-- For 'beta' or 'alpha' -->
 
     <property name="javac.source" value="1.7"/>
     <property name="javac.target" value="1.7"/>
@@ -387,6 +387,16 @@
                 </copy>
             </else>
         </if>
+
+        <!--
+            Java has trouble reading translations from UTF-8 files. To work around that,
+            this plugin ensures that Java-compatible encoding is used.
+            See https://stackoverflow.com/questions/4659929/how-to-use-utf-8-in-resource-properties-with-resourcebundle
+          -->
+        <native2ascii encoding="UTF8" src="${target.i18n.dir}" dest="${target.i18n.dir}/encoded" />
+        <move todir="${target.i18n.dir}" overwrite="true">
+            <fileset dir="${target.i18n.dir}/encoded"/>
+        </move>
 
         <!-- Auto generates a default base i18n file -->
         <copy file="${target.i18n.dir}/${i18n.basename}_${i18n.default.locale}.properties"
@@ -1489,6 +1499,7 @@
                                         </fileset>
                                         <fileset dir="${web.dir}">
                                             <include name="WEB-INF/**/*.*"/>
+                                            <include name="META-INF/**/*.*"/>
                                             <exclude name="WEB-INF/web.xml"/>
                                             <exclude name="WEB-INF/classes/openfire_init.xml"/>
                                             <exclude name="WEB-INF/tmp/**/*.*"/>
