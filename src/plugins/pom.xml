@@ -132,6 +132,7 @@
         <module>stunserver</module>
         <module>subscription</module>
         <module>tikitoken</module>
+        <module>tinberry</module>
         <module>userCreation</module>
         <module>userImportExport</module>
         <module>userservice</module>

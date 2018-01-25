@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin>
+    <!-- Main plugin class -->
+    <class>de.markuswendland.openfire.plugins.tinberry</class>
+
+    <!-- Plugin meta-data -->
+    <name>Tinberry Plugin</name>
+    <description>This plugin implements tinberry features.</description>
+    <author>Markus Wendland</author>
+
+    <version>1.0</version>
+    <date>07/01/2017</date>
+    <url>http://www.igniterealtime.org/projects/openfire/plugins.jsp</url>
+    <minServerVersion>4.3.0</minServerVersion>
+    <licenseType>closed</licenseType>
+
+    <!-- Admin console entries -->
+    <adminconsole>
+        <!-- More on this below -->
+    </adminconsole>
+</plugin>
